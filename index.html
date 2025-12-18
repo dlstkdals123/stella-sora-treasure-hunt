@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stella Sora Treasure Simulator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="sidebar">
+        <h2>Stella Sora Treasure Simulator</h2>
+
+        <div class="control-group">
+            <h3>1. 동작 모드</h3>
+            <div class="mode-toggles">
+                <button onclick="setMode('play')" id="btn-play" class="active">⛏ 채굴</button>
+                <button onclick="setMode('edit')" id="btn-edit">✏️ 맵 편집</button>
+            </div>
+            <div id="edit-palette" style="display:none; margin-top:5px; gap:5px; flex-wrap:wrap;">
+                <button onclick="editVal=3">내구3</button>
+                <button onclick="editVal=0.5" style="background:#fff; color:#000;">하얀(0.5)</button>
+                <button onclick="editVal=0">빈칸</button>
+                <button onclick="editVal=-1" style="background:#444;">지우개</button>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <h3>보드 설정</h3>
+            <select id="board-preset" onchange="changeBoardPreset()"
+                style="width:100%; padding:8px; margin-bottom:5px; background:var(--sidebar-bg); color:white; border:1px solid #444; border-radius:4px;">
+                <option value="stage1">Stage 1</option>
+                <option value="stage2">Stage 2</option>
+                <option value="stage3">Stage 3</option>
+                <option value="stage4">Stage 4</option>
+            </select>
+            <button onclick="resetBoard()" class="secondary" style="width:100%;">보드 초기화</button>
+        </div>
+
+        <div class="control-group">
+            <h3>보물 배치 설정</h3>
+            <div class="mode-toggles">
+                <button id="btn-place-mode" onclick="togglePlacementMode()">배치 모드 (OFF)</button>
+            </div>
+
+            <div id="rotation-controls"
+                style="display:none; margin-top: 10px; gap: 5px; justify-content: center; flex-wrap: wrap;">
+                <button onclick="rotateSelectedTreasure(-1)" class="secondary" style="font-size: 16px;">↺ 반시계</button>
+                <button onclick="rotateSelectedTreasure(1)" class="secondary" style="font-size: 16px;">↻ 시계</button>
+            </div>
+        </div>
+
+        <div class="control-group" style="flex: 1; overflow-y: auto;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>보물 목록 (선택하여 배치)</h3>
+                <button onclick="openEditor()" style="font-size:10px; padding:4px;">+ 만들기</button>
+            </div>
+            <div id="visual-treasure-list"></div>
+        </div>
+
+        <div class="control-group">
+            <h3>3. 시뮬레이션</h3>
+            <button onclick="resetBoard()" class="secondary" style="width:100%;">🔄 맵 초기화</button>
+            <div id="log-area" style="margin-top:10px; font-size:12px; color:#ffeaa7; white-space: pre-wrap;"></div>
+        </div>
+    </div>
+
+    <div id="game-area">
+        <div id="grid-container" class="hex-grid"></div>
+    </div>
+
+    <div id="modal-overlay">
+        <div id="editor-modal">
+            <h3>보물 설계도</h3>
+            <p style="font-size:12px; color:#aaa;">클릭하여 보물 모양을 만드세요. (가운데가 중심축)</p>
+            <div id="editor-grid"></div>
+            <div style="display:flex; gap:10px; width:100%;">
+                <button onclick="saveTreasure()" style="flex:1;">저장</button>
+                <button onclick="closeEditor()" class="secondary" style="flex:1;">취소</button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,578 @@
+#grid-container {
+    position: relative;
+    width: calc(var(--hex-width) * 0.75 * 7);
+    height: calc(var(--hex-height) * 4);
+    margin: 50px auto;
+}
+
+:root {
+    --hex-size: 64px;
+    /* Flat-topped: Width가 2*size, Height가 sqrt(3)*size */
+    --hex-width: calc(var(--hex-size) * 2);
+    /* 2 * size */
+    --hex-height: calc(var(--hex-size) * 1.732);
+    /* sqrt(3) * size (약 55.4px) */
+    --bg-color: #2b2b40;
+    --sidebar-bg: #1e1e2f;
+    --accent: #6c5ce7;
+    --tile-normal: #a29bfe;
+    --tile-white: #ffffff;
+    --tile-open: #3e3e55;
+
+    /* 요청하신 내구도별 색상 */
+    --color-hp-05: #E2E3F8;
+    --color-hp-1: #C0BFDF;
+    --color-hp-2: #928ABA;
+    --color-hp-3: #1A0A2A;
+    /* 엄청 어두운 보라색 */
+
+    --best-1: #ff7675;
+    /* 1등 색상 */
+    --best-2: #fdcb6e;
+    /* 2등 색상 */
+    --best-3: #55efc4;
+    /* 3등 색상 */
+}
+
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background-color: var(--bg-color);
+    color: white;
+    display: flex;
+    height: 100vh;
+    margin: 0;
+    overflow: hidden;
+}
+
+/* --- Sidebar --- */
+#sidebar {
+    width: 360px;
+    background: var(--sidebar-bg);
+    padding: 20px;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    overflow-y: auto;
+    z-index: 10;
+}
+
+h2,
+h3 {
+    margin: 0 0 10px 0;
+    border-bottom: 1px solid #444;
+    padding-bottom: 5px;
+}
+
+button {
+    padding: 8px;
+    background: var(--accent);
+    border: none;
+    color: white;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: 0.2s;
+    font-weight: bold;
+}
+
+button:hover {
+    filter: brightness(1.1);
+}
+
+button.secondary {
+    background: #555;
+}
+
+button.active {
+    background: #ff7675;
+}
+
+.control-group {
+    background: rgba(0, 0, 0, 0.2);
+    padding: 10px;
+    border-radius: 8px;
+}
+
+.mode-toggles {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 5px;
+}
+
+.mode-toggles button {
+    flex: 1;
+    font-size: 12px;
+}
+
+/* Treasure List */
+#treasure-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.treasure-item {
+    width: 40px;
+    height: 40px;
+    background: #444;
+    border: 2px solid transparent;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    border-radius: 5px;
+    position: relative;
+}
+
+.treasure-item.selected {
+    border-color: #fdcb6e;
+    background: #555;
+}
+
+.treasure-item span {
+    font-size: 10px;
+    pointer-events: none;
+}
+
+.del-btn {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    width: 15px;
+    height: 15px;
+    background: red;
+    border-radius: 50%;
+    font-size: 10px;
+    line-height: 15px;
+    text-align: center;
+    display: none;
+}
+
+.treasure-item:hover .del-btn {
+    display: block;
+}
+
+/* --- Game Area --- */
+#game-area {
+    flex: 1;
+    position: relative;
+    background-image: radial-gradient(#3e3e55 20%, #2b2b40 20%);
+    background-size: 20px 20px;
+    overflow: auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* --- Hex Grid (Odd-Q Layout) --- */
+/* 컨테이너 수정 */
+.hex-grid {
+    position: relative;
+    /* 자식 hex들의 기준점 */
+    width: 800px;
+    /* 충분한 공간 확보 */
+    height: 600px;
+    margin: 0 auto;
+    transform: scale(0.8);
+    /* 맵이 크다면 전체 스케일 조정 가능 */
+}
+
+/* 개별 육각형 수정 */
+.hex {
+    position: absolute;
+    /* 계산된 좌표에 배치 */
+    width: var(--hex-width);
+    height: var(--hex-height);
+    background-color: var(--tile-normal);
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+    color: #2d3436;
+    user-select: none;
+    transition: transform 0.1s, background-color 0.2s;
+    /* margin-right, margin-top 등 불필요한 속성 제거 */
+}
+
+/* Hover 효과 시 위치 고정 */
+.hex:hover {
+    transform: scale(1.1);
+    z-index: 10;
+}
+
+/* States */
+/* --- 기본 상태: -1 블럭은 완전히 숨김 --- */
+.hex[data-val="-1"] {
+    opacity: 0;
+    pointer-events: none;
+    /* 평상시엔 클릭 방지 */
+}
+
+/* --- 편집 모드(.editing)일 때의 -1 블럭 설정 --- */
+.editing .hex[data-val="-1"] {
+    opacity: 0.2;
+    /* 투명하게 보이게 함 */
+    pointer-events: auto;
+    /* 클릭 가능하도록 변경 */
+    background-color: #fff;
+    /* 편집 시 구분을 위해 흰색 계열로 표시 */
+    border: 1px dashed #666;
+    visibility: visible;
+}
+
+/* 편집 모드에서 마우스 오버 시 피드백 */
+.editing .hex[data-val="-1"]:hover {
+    opacity: 0.5;
+    transform: scale(1.05);
+}
+
+.hex[data-val="0"] {
+    background-color: var(--tile-open);
+}
+
+/* 내구도 글씨(innerHTML)가 없어도 색상으로 구분되도록 설정 */
+.hex[data-val="0.5"] {
+    background-color: var(--color-hp-05);
+}
+
+.hex[data-val="1"] {
+    background-color: var(--color-hp-1);
+}
+
+.hex[data-val="2"] {
+    background-color: var(--color-hp-2);
+}
+
+.hex[data-val="3"] {
+    background-color: var(--color-hp-3);
+    color: white;
+    /* 어두운 배경엔 흰색 글씨(확률용) */
+}
+
+.hex[data-val="3"] .prob-text {
+    color: rgba(255, 255, 255, 0.9);
+    /* 확률 텍스트도 흰색으로 */
+}
+
+/* Overlays */
+/* 확률 텍스트 위치 조정 (배지와 겹치지 않게 하단 배치) */
+.prob-text {
+    position: absolute;
+    bottom: 8px;
+    width: 100%;
+    text-align: center;
+    font-size: 10px;
+    font-weight: bold;
+    color: rgba(255, 255, 255, 0.8);
+    /* 어두운 배경 대비 가독성 */
+    pointer-events: none;
+    z-index: 5;
+}
+
+/* Top 3 배지 중앙 정렬 */
+.rank-badge {
+    position: absolute;
+    /* 부모(.hex) 기준 정중앙 배치 */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    color: white;
+    font-weight: 900;
+    white-space: nowrap;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.4);
+    z-index: 10;
+    pointer-events: none;
+    /* 클릭 방해 금지 */
+}
+
+/* 순위별 배지 강조 */
+.rank-1 {
+    background-color: var(--best-1);
+    border: 2px solid #fff;
+    font-size: 14px;
+    padding: 6px 10px;
+}
+
+.rank-2 {
+    background-color: var(--best-2);
+}
+
+.rank-3 {
+    background-color: var(--best-3);
+}
+
+/* 기존 best-pick 효과 제거 또는 수정 */
+.hex.best-pick {
+    box-shadow: inset 0 0 10px white;
+    outline: 3px solid var(--best-1);
+    z-index: 5;
+}
+
+/* --- Modal (Treasure Editor) --- */
+#modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+#editor-modal {
+    background: #2d3436;
+    padding: 20px;
+    border-radius: 10px;
+    width: 400px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+#editor-grid {
+    position: relative;
+    margin: 20px auto;
+    display: block;
+    /* Flex 제거 */
+}
+
+/* Mini Hex for Editor */
+.mini-hex {
+    position: absolute;
+    /* 절대 좌표 사용 */
+    width: 30px;
+    height: 26px;
+    background: #555;
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+/* 불필요한 mini-row 및 nth-child 설정 삭제 */
+.mini-row {
+    display: none;
+}
+
+.mini-hex:nth-child(even) {
+    transform: none;
+}
+
+.mini-hex.active {
+    background: #fdcb6e;
+}
+
+.mini-hex.center-point {
+    border: 2px solid red;
+}
+
+/* --- 보드판 내 보물 표시 --- */
+.treasure-indicator {
+    position: absolute;
+    width: 60%;
+    height: 60%;
+    background-color: #ffd700;
+    /* 골드 색상 */
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    z-index: 1;
+    /* 블록 배경보다는 위, 텍스트보다는 아래 */
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+/* 블록이 있을 때 (매몰 상태) */
+.hex:not([data-val="0"]) .treasure-indicator {
+    opacity: 0.2;
+    /* 희미하게 보임 */
+}
+
+/* 블록이 깨졌을 때 (드러난 상태) */
+.hex[data-val="0"] .treasure-indicator {
+    opacity: 1;
+    /* 선명하게 보임 */
+    box-shadow: 0 0 10px #ffd700;
+}
+
+/* --- 하단 왼쪽 배치된 보물 목록 패널 수정 --- */
+#placed-treasures-panel {
+    position: absolute;
+    bottom: 20px;
+    /* 바닥에서 약간 띄움 */
+    left: 20px;
+    /* 왼쪽에서 약간 띄움 */
+    width: 260px;
+    max-height: 300px;
+    background: rgba(15, 15, 25, 0.95);
+    /* 배경을 조금 더 어둡게 하여 가독성 확보 */
+    border: 2px solid var(--accent);
+    border-radius: 12px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    z-index: 100;
+    /* 다른 요소보다 확실히 위에 표시 */
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    pointer-events: auto;
+    /* 클릭 이벤트 허용 */
+}
+
+/* 스크롤바 디자인 (Notion 스타일) */
+#placed-treasures-panel::-webkit-scrollbar {
+    width: 6px;
+}
+
+#placed-treasures-panel::-webkit-scrollbar-thumb {
+    background: var(--accent);
+    border-radius: 10px;
+}
+
+/* 맵 초기화 오버레이 (필요한 경우) */
+.map-reset-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 200px;
+    height: 100px;
+    z-index: 10;
+    /* 낮은 레이어 번호 */
+    pointer-events: none;
+    /* 기본적으로 클릭 이벤트 차단 */
+}
+
+#placed-treasures-panel h3 {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    color: var(--accent);
+    border-bottom: 1px solid #444;
+    padding-bottom: 5px;
+}
+
+.placed-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 5px;
+    border-radius: 5px;
+}
+
+.placed-item svg {
+    width: 40px;
+    height: 40px;
+}
+
+.remove-btn {
+    background: #e74c3c;
+    border: none;
+    color: white;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: 0.2s;
+    padding: 0;
+    line-height: 1;
+}
+
+.remove-btn:hover {
+    background: #c0392b;
+    transform: scale(1.1);
+}
+
+/* 배치 모드에서 이미 놓인 보물 위에 마우스를 올렸을 때의 피드백 */
+.hex.has-treasure:hover {
+    filter: brightness(1.5) saturate(1.5);
+    cursor: alias;
+    /* 회수 가능함을 알리는 커서 */
+}
+
+/* 이미 보물이 배치된 칸의 확률 텍스트 숨김 */
+.hex.has-treasure .prob-text {
+    display: none;
+}
+
+/* 배치된 보물은 더 밝게 강조 */
+.hex.has-treasure {
+    filter: brightness(1.2);
+    border: 2px solid gold;
+    box-sizing: border-box;
+}
+
+/* --- 비주얼 보물 목록 스타일 --- */
+#visual-treasure-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+.visual-treasure-item {
+    width: 80px;
+    height: 80px;
+    background: #3e3e55;
+    border: 2px solid #555;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.2s;
+    padding: 5px;
+}
+
+.visual-treasure-item.selected {
+    border-color: #fdcb6e;
+    background: #555;
+    box-shadow: 0 0 10px rgba(253, 203, 110, 0.3);
+}
+
+/* SVG 스타일 */
+.treasure-svg {
+    width: 100%;
+    height: 100%;
+    /* SVG 내부 육각형 색상 */
+    fill: #a29bfe;
+    stroke: #2d3436;
+    stroke-width: 1px;
+}
+
+/* 중심점 표시 */
+.treasure-svg .center-hex {
+    fill: #fdcb6e;
+    stroke: #d63031;
+}
+
+/* --- 배치 모드 미리보기 스타일 --- */
+/* 배치 가능 (초록색) */
+.hex.placement-valid {
+    background-color: rgba(46, 204, 113, 0.6) !important;
+    box-shadow: 0 0 15px #2ecc71;
+    z-index: 10;
+    pointer-events: auto;
+}
+
+/* 배치 불가능 (빨간색) */
+.hex.placement-invalid {
+    background-color: rgba(231, 76, 60, 0.6) !important;
+    box-shadow: 0 0 15px #e74c3c;
+    z-index: 10;
+    pointer-events: none;
+}
