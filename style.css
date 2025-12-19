@@ -371,10 +371,6 @@ button.active {
     background: #fdcb6e;
 }
 
-.mini-hex.center-point {
-    border: 2px solid red;
-}
-
 /* --- 보드판 내 보물 표시 --- */
 .treasure-indicator {
     position: absolute;
@@ -525,6 +521,8 @@ button.active {
 }
 
 .visual-treasure-item {
+    position: relative;
+    /* 삭제 버튼의 기준점 */
     width: 80px;
     height: 80px;
     background: #3e3e55;
@@ -542,6 +540,40 @@ button.active {
     border-color: #fdcb6e;
     background: #555;
     box-shadow: 0 0 10px rgba(253, 203, 110, 0.3);
+}
+
+/* 시각적 보물 목록용 삭제 버튼 */
+.visual-del-btn {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    width: 20px;
+    height: 20px;
+    background: #ff7675;
+    /* 삭제 강조 색상 */
+    color: white;
+    border: none;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    display: none;
+    /* 기본적으로 숨김 */
+    z-index: 20;
+    justify-content: center;
+    align-items: center;
+    line-height: 1;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* 아이템에 마우스를 올렸을 때만 삭제 버튼 표시 */
+.visual-treasure-item:hover .visual-del-btn {
+    display: flex;
+}
+
+.visual-del-btn:hover {
+    background: #d63031;
+    transform: scale(1.1);
 }
 
 /* SVG 스타일 */

@@ -21,7 +21,7 @@ function rotate60(q, r) {
 }
 
 // --- 2. GLOBAL STATE ---
-const ROWS = 4; // 맵 크기를 조금 더 키워 안정적인 원형 출력
+const ROWS = 4;
 const COLS = 7;
 const HEX_SIZE = 64; // 반지름
 let grid = []; // 2D array storing values: -1(null), 0(open), 1-3(hp), 0.5(white)
@@ -45,38 +45,39 @@ let treasures = [
 ];
 
 const STAGE_DATA = {
-    'stage1': [
-        [-1, 1, 1, 1, 1, 2, -1],
-        [1, 1, 0.5, 1, 1, 1, 1],
-        [1, 2, 1, 1, 1, 0.5, 1],
-        [-1, -1, 1, -1, 1, -1, -1]
-    ],
-    'stage2': [
-        [3, 3, 3, 3, 3, 3, 3],
-        [3, 3, 3, 3, 3, 3, 3],
-        [3, 3, 3, 3, 3, 3, 3],
-        [3, 3, 3, 3, 3, 3, 3]
-    ],
-    'stage3': [
-        [3, 3, 3, 3, 3, 3, 3],
-        [3, 3, 3, 3, 3, 3, 3],
-        [3, 3, 3, 3, 3, 3, 3],
-        [3, 3, 3, 3, 3, 3, 3]
-    ],
-    'stage4': [
-        [3, 3, 3, 3, 3, 3, 3],
-        [3, 3, 3, 3, 3, 3, 3],
-        [3, 3, 3, 3, 3, 3, 3],
-        [3, 3, 3, 3, 3, 3, 3]
-    ]
+    'stage1': {
+        // 블록 내구도 배치
+        layout: [
+            [-1, 1, 1, 1, 1, 2, -1],
+            [1, 1, 0.5, 1, 1, 1, 1],
+            [1, 2, 1, 1, 1, 0.5, 1],
+            [-1, -1, 1, -1, 1, -1, -1]
+        ],
+        // 스테이지 시작 시 미리 배치될 보물 목록
+        treasures: [
+            {
+                id: 1001, // 고유 ID
+                name: "기본보물",
+                points: [{ q: 0, r: 0 }, { q: 0, r: -1 }], // 보물 모양 (상대 좌표)
+                placedAt: { r: 1, c: 2 } // 배치될 중심점 (row, col)
+            }
+        ]
+    },
+    'stage2': {
+        layout: Array(ROWS).fill().map(() => Array(COLS).fill(3)),
+        treasures: []
+    },
+    'stage3': {
+        layout: Array(ROWS).fill().map(() => Array(COLS).fill(3)),
+        treasures: []
+    },
+    'stage4': {
+        layout: Array(ROWS).fill().map(() => Array(COLS).fill(3)),
+        treasures: []
+    }
 };
 
 // --- 3. INITIALIZATION & PRESETS ---
-
-function changeBoardPreset() {
-    const presetType = document.getElementById('board-preset').value;
-    initBoard(presetType);
-}
 
 function resetBoard() {
     const presetType = document.getElementById('board-preset').value;
@@ -88,34 +89,34 @@ function initBoard(stage = 'stage1') {
     const container = document.getElementById('grid-container');
     container.innerHTML = '';
 
-    // hiddenGrid 초기화
+    // 1. 스테이지 데이터 추출 (객체 형태 또는 기존 배열 형태 대응)
+    const stageInfo = STAGE_DATA[stage] || { layout: [], treasures: [] };
+    const currentLayout = Array.isArray(stageInfo) ? stageInfo : (stageInfo.layout || []);
+    const prePlacedTreasures = stageInfo.treasures || [];
+
+    // 2. 상태값 초기화
     hiddenGrid = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
-    // 배치된 보물 목록 초기화
-    placedTreasures = [];
+    // 원본 데이터 보존을 위해 깊은 복사 수행
+    placedTreasures = JSON.parse(JSON.stringify(prePlacedTreasures));
 
     const width = 2 * HEX_SIZE;
     const height = Math.sqrt(3) * HEX_SIZE;
 
-    // 현재 선택된 스테이지의 데이터 가져오기 (없으면 빈 배열)
-    const currentLayout = STAGE_DATA[stage] || [];
-
+    // 3. 그리드 블록 생성 및 내구도 설정
     for (let r = 0; r < ROWS; r++) {
         let rowArr = [];
         for (let c = 0; c < COLS; c++) {
-            // 하드코딩된 배열에서 값 추출 (데이터가 없으면 -1 기본값)
             let val = (currentLayout[r] && currentLayout[r][c] !== undefined)
                 ? currentLayout[r][c]
                 : -1;
-
             rowArr.push(val);
 
-            // DOM 생성 및 배치 로직
             let hex = document.createElement('div');
             hex.className = 'hex';
             hex.dataset.r = r;
             hex.dataset.c = c;
 
-            // Flat-topped Pixel 좌표 계산 (Odd-Q)
+            // Flat-topped Pixel 좌표 계산
             const x = c * (width * 0.75);
             const y = r * height + ((c % 2) * (height / 2));
 
@@ -123,16 +124,29 @@ function initBoard(stage = 'stage1') {
             hex.style.top = `${y}px`;
             hex.onclick = () => onHexClick(r, c);
             hex.onmouseover = () => onHexHover(r, c);
-
             container.appendChild(hex);
         }
         grid.push(rowArr);
     }
+
+    // 4. 하드코딩된 보물 정보를 hiddenGrid에 물리적으로 반영
+    placedTreasures.forEach(treasure => {
+        const centerAxial = oddQToAxial(treasure.placedAt.r, treasure.placedAt.c);
+        treasure.points.forEach(p => {
+            const targetAxialQ = centerAxial.q + p.q;
+            const targetAxialR = centerAxial.r + p.r;
+            const targetPos = axialToOddQ(targetAxialQ, targetAxialR);
+
+            if (targetPos.r >= 0 && targetPos.r < ROWS && targetPos.c >= 0 && targetPos.c < COLS) {
+                hiddenGrid[targetPos.r][targetPos.c] = true;
+            }
+        });
+    });
+
+    // 5. UI 및 확률 계산 갱신
     renderGrid();
     renderVisualTreasureList();
-    renderPlacedList(); // 배치된 보물 목록 초기화
-
-    // 보드가 초기화되자마자 확률 계산을 실행하여 화면에 표시
+    renderPlacedList();
     runSolver();
 }
 
@@ -191,12 +205,12 @@ function onHexClick(r, c) {
             // 보물 배치 로직
             const targetCoords = calculatePlacementCoords(r, c);
 
-            // 최종 유효성 검사 (-1만 아니면 배치 가능)
+            // 최종 유효성 검사
             let isValid = true;
             for (let coord of targetCoords) {
                 if (coord.r < 0 || coord.r >= ROWS || coord.c < 0 || coord.c >= COLS ||
                     (hiddenGrid[coord.r] && hiddenGrid[coord.r][coord.c]) ||
-                    grid[coord.r][coord.c] === -1) { // -1(없음) 블럭만 아니면 모두 허용
+                    grid[coord.r][coord.c] === -1) {
                     isValid = false; break;
                 }
             }
@@ -220,6 +234,7 @@ function onHexClick(r, c) {
                 });
 
                 // 3. 상태 업데이트
+                isPlacementMode = false;
                 selectedTreasureId = null;
                 currentRotationPoints = [];
                 clearPlacementPreview();
@@ -229,20 +244,6 @@ function onHexClick(r, c) {
                 runSolver();       // 보물 위치 확정에 따른 확률 재계산
             } else {
                 alert("이 위치에는 배치할 수 없습니다.");
-            }
-        } else if (hiddenGrid[r] && hiddenGrid[r][c]) {
-            // 보물이 이미 있는 곳을 클릭하면 해당 보물을 찾아 회수
-            const tIndex = placedTreasures.findIndex(t => {
-                // 이 보물의 점유 칸 중 현재 클릭한 (r, c)가 포함되는지 확인
-                const centerAxial = oddQToAxial(t.placedAt.r, t.placedAt.c);
-                return t.points.some(p => {
-                    const pos = axialToOddQ(centerAxial.q + p.q, centerAxial.r + p.r);
-                    return pos.r === r && pos.c === c;
-                });
-            });
-
-            if (tIndex !== -1) {
-                removeTreasure(tIndex);
             }
         }
         return; // 배치 모드에서는 채굴 로직 실행 안 함
@@ -358,9 +359,8 @@ function closeEditor() {
 function initEditorGrid() {
     const container = document.getElementById('editor-grid');
     container.innerHTML = '';
-    editorGrid = []; // Reset state
+    editorGrid = [];
 
-    // 컨테이너 크기 고정 및 기준점 설정
     container.style.position = 'relative';
     container.style.width = '200px';
     container.style.height = '180px';
@@ -368,25 +368,38 @@ function initEditorGrid() {
     const MINI_HEX_W = 30;
     const MINI_HEX_H = 26;
 
+    // 중앙 정렬을 위한 Offset (컨테이너 크기에 맞춰 조정)
+    const offsetX = 100;
+    const offsetY = 90;
+
     for (let r = -2; r <= 2; r++) {
         for (let q = -2; q <= 2; q++) {
+            // Cube coordinate constraint: q + r + s = 0, |q|, |r|, |s| <= radius
             if (Math.abs(q) <= 2 && Math.abs(r) <= 2 && Math.abs(q + r) <= 2) {
                 let btn = document.createElement('div');
                 btn.className = 'mini-hex';
-                if (q === 0 && r === 0) btn.classList.add('center-point');
+                const isCenter = q === 0 && r === 0;
+                if (isCenter) {
+                    btn.classList.add('active');
+                }
 
-                // 수학적 좌표 계산 (Flat-topped Hex)
-                const x = q * (MINI_HEX_W * 0.75) + 85; // 85는 중앙 정렬용 offset
-                const y = r * MINI_HEX_H + (q % 2) * (MINI_HEX_H / 2) + 75;
+                // 수학적으로 정확한 Flat-topped Hex 좌표 계산
+                // x = q * (width * 3/4)
+                // y = (r + q/2) * height
+                const x = q * (MINI_HEX_W * 0.75) + offsetX;
+                const y = (r + q / 2) * MINI_HEX_H + offsetY;
 
-                btn.style.left = `${x}px`;
-                btn.style.top = `${y}px`;
+                btn.style.left = `${x - MINI_HEX_W / 2}px`; // 중심점 기준 배치를 위해 width/2 차감
+                btn.style.top = `${y - MINI_HEX_H / 2}px`;  // 중심점 기준 배치를 위해 height/2 차감
                 btn.style.position = 'absolute';
 
                 btn.dataset.q = q;
                 btn.dataset.r = r;
                 btn.onclick = function () {
-                    this.classList.toggle('active');
+                    // 중앙 hex는 선택 해제할 수 없음
+                    if (!isCenter) {
+                        this.classList.toggle('active');
+                    }
                 };
                 container.appendChild(btn);
             }
@@ -424,44 +437,61 @@ function saveTreasure() {
 
 // 보물 포인트 배열을 받아 SVG 문자열을 생성하는 도우미 함수
 function generateTreasureSVG(points) {
-    const hexRadius = 10; // 미니맵용 반지름
-    const hexWidth = hexRadius * 2;
-    const hexHeight = Math.sqrt(3) * hexRadius;
+    const hexRadius = 10;
+    const hexHeight = Math.sqrt(3) * hexRadius; // sqrt(3) * R
 
-    // SVG viewBox 계산을 위한 경계박스(Bounding Box) 찾기
-    let minQ = 0, maxQ = 0, minR = 0, maxR = 0;
-    points.forEach(p => {
-        minQ = Math.min(minQ, p.q); maxQ = Math.max(maxQ, p.q);
-        minR = Math.min(minR, p.r); maxR = Math.max(maxR, p.r);
-    });
-
-    // Flat-topped 좌표계에서 중심 좌표 계산
+    // 1. Flat-topped 좌표계에서 중심 좌표 계산 (Axial 공식 적용)
     const getMiniXY = (q, r) => {
-        const x = q * (hexWidth * 0.75);
-        const y = r * hexHeight + ((q % 2) * (hexHeight / 2));
+        // x = R * 1.5 * q
+        // y = R * sqrt(3) * (r + q/2)
+        const x = hexRadius * 1.5 * q;
+        const y = hexHeight * (r + q / 2);
         return { x, y };
     };
 
-    let svgContent = '';
-    // Flat-topped 육각형 경로 정의
-    const hexPath = `M ${hexRadius / 2} ${-hexHeight / 2} L ${hexRadius * 1.5} ${-hexHeight / 2} L ${2 * hexRadius} 0 L ${hexRadius * 1.5} ${hexHeight / 2} L ${hexRadius / 2} ${hexHeight / 2} L 0 0 Z`;
+    // 2. 중심점(0,0)을 기준으로 하는 육각형 경로 (Flat-topped)
+    // 육각형의 여섯 정점: (R, 0), (R/2, H/2), (-R/2, H/2), (-R, 0), (-R/2, -H/2), (R/2, -H/2)
+    const hexPath = `M ${hexRadius} 0 
+                     L ${hexRadius / 2} ${hexHeight / 2} 
+                     L ${-hexRadius / 2} ${hexHeight / 2} 
+                     L ${-hexRadius} 0 
+                     L ${-hexRadius / 2} ${-hexHeight / 2} 
+                     L ${hexRadius / 2} ${-hexHeight / 2} Z`;
 
+    let svgContent = '';
     points.forEach(p => {
         const pos = getMiniXY(p.q, p.r);
         const isCenter = p.q === 0 && p.r === 0;
-        // 중심점은 다른 클래스 적용
         svgContent += `<path d="${hexPath}" transform="translate(${pos.x}, ${pos.y})" class="${isCenter ? 'center-hex' : ''}" />`;
     });
 
-    // viewBox 설정 (약간의 여백 포함)
     const boxSize = 150;
     const centerOffset = boxSize / 2;
 
-    return `<svg class="treasure-svg" viewBox="0 0 ${boxSize} ${boxSize}">
+    return `<svg class="treasure-svg" viewBox="0 0 ${boxSize} ${boxSize}" xmlns="http://www.w3.org/2000/svg">
                 <g transform="translate(${centerOffset}, ${centerOffset})">
                     ${svgContent}
                 </g>
             </svg>`;
+}
+
+// 보물 설계도 삭제 함수
+function deleteTreasureTemplate(id) {
+    if (!confirm("이 보물 설계도를 보물 목록에서 영구히 삭제하시겠습니까?")) return;
+
+    const index = treasures.findIndex(t => t.id === id);
+    if (index !== -1) {
+        treasures.splice(index, 1); // 배열에서 삭제
+
+        // 만약 삭제하려는 보물이 현재 선택된 상태였다면 선택 해제
+        if (selectedTreasureId === id) {
+            selectedTreasureId = null;
+            currentRotationPoints = [];
+        }
+
+        renderVisualTreasureList(); // 목록 새로고침
+        runSolver(); // 확률 다시 계산
+    }
 }
 
 // 비주얼 목록 렌더링 함수
@@ -484,6 +514,16 @@ function renderVisualTreasureList() {
         div.className = `visual-treasure-item ${t.id === selectedTreasureId ? 'selected' : ''}`;
         div.innerHTML = generateTreasureSVG(t.points);
         div.title = t.name; // 툴팁으로 이름 표시
+
+        // 삭제 버튼 추가
+        let delBtn = document.createElement('button');
+        delBtn.className = 'visual-del-btn';
+        delBtn.innerText = '✕';
+        delBtn.onclick = (e) => {
+            e.stopPropagation(); // 부모의 선택(click) 이벤트가 발생하지 않도록 차단
+            deleteTreasureTemplate(t.id);
+        };
+        div.appendChild(delBtn);
 
         div.onclick = () => selectTreasureForPlacement(t.id);
         listContainer.appendChild(div);
@@ -729,13 +769,15 @@ function clearProbabilities() {
 function runSolver() {
     document.getElementById('log-area').innerText = "남은 보물 위치 계산 중...";
 
-    // Probability Map
-    let probMap = Array(ROWS).fill().map(() => Array(COLS).fill(0));
+    // 1. 각 칸별로 가능한 '고유 배치 키'의 집합을 관리
+    // configMap[r][c] = Set { "config_key_1", "config_key_2", ... }
+    let configMap = Array.from({ length: ROWS }, () =>
+        Array.from({ length: COLS }, () => new Set())
+    );
 
-    // 1. 아직 배치되지 않은 보물들만 추출 (계산 대상)
-    let remainingTreasures = treasures.filter(t => {
-        return t.active && !placedTreasures.some(pt => pt.id === t.id);
-    });
+    let remainingTreasures = treasures.filter(t =>
+        t.active && !placedTreasures.some(pt => pt.id === t.id)
+    );
 
     if (remainingTreasures.length === 0) {
         document.getElementById('log-area').innerText = "모든 보물의 위치를 고정했습니다.";
@@ -743,16 +785,13 @@ function runSolver() {
         return;
     }
 
-    // 2. 남은 보물들에 대해서만 공간 탐색
+    // 2. 공간 탐색 및 고유 배치 키 기록
     remainingTreasures.forEach(treasure => {
         for (let r = 0; r < ROWS; r++) {
             for (let c = 0; c < COLS; c++) {
-                // 이미 보물이 배치된 칸(hiddenGrid)이거나 벽(-1)이면 중심점이 될 수 없음
                 if (grid[r][c] === -1 || (hiddenGrid[r] && hiddenGrid[r][c])) continue;
 
                 let centerAxial = oddQToAxial(r, c);
-                let validConfigs = new Set();
-
                 for (let rot = 0; rot < 6; rot++) {
                     let currentPoints = [];
                     let isValidRot = true;
@@ -763,67 +802,53 @@ function runSolver() {
                             let rotated = rotate60(rq, rr);
                             rq = rotated.q; rr = rotated.r;
                         }
-
                         let absArr = axialToOddQ(centerAxial.q + rq, centerAxial.r + rr);
 
-                        // 1. 경계 검사
-                        if (absArr.r < 0 || absArr.r >= ROWS || absArr.c < 0 || absArr.c >= COLS) {
+                        if (absArr.r < 0 || absArr.r >= ROWS || absArr.c < 0 || absArr.c >= COLS ||
+                            grid[absArr.r][absArr.c] === 0 || grid[absArr.r][absArr.c] === -1 ||
+                            (hiddenGrid[absArr.r] && hiddenGrid[absArr.r][absArr.c])) {
                             isValidRot = false; break;
                         }
-
-                        // 2. 상태 검사 (0 또는 -1은 배치 불가)
-                        let cellVal = grid[absArr.r][absArr.c];
-                        if (cellVal === 0 || cellVal === -1) {
-                            isValidRot = false; break;
-                        }
-
-                        // 3. [추가] 확정된 보물과의 충돌 검사
-                        // 이미 배치된 보물(hiddenGrid)이 있는 칸이라면, 다른 보물이 겹쳐서 놓일 수 없음
-                        if (hiddenGrid[absArr.r] && hiddenGrid[absArr.r][absArr.c]) {
-                            isValidRot = false;
-                            break;
-                        }
-
                         currentPoints.push(`${absArr.r},${absArr.c}`);
                     }
 
                     if (isValidRot) {
-                        let key = currentPoints.sort().join('|');
-                        if (!validConfigs.has(key)) {
-                            validConfigs.add(key);
-                            currentPoints.forEach(pt => {
-                                let [pr, pc] = pt.split(',').map(Number);
-                                probMap[pr][pc]++;
-                            });
-                        }
+                        // 고유한 배치 식별자 생성 (보물ID + 정렬된 좌표들)
+                        let configKey = `${treasure.id}_${currentPoints.sort().join('|')}`;
+                        currentPoints.forEach(pt => {
+                            let [pr, pc] = pt.split(',').map(Number);
+                            configMap[pr][pc].add(configKey);
+                        });
                     }
                 }
             }
         }
     });
 
-    // 2단계: 내구도와 연쇄 반응을 고려한 "새로운 전략 점수" 산출
+    // 3. 전략 점수 산출 (OR 논리 적용)
     let strategyScores = [];
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
             let hp = grid[r][c];
-            if (hp <= 0 && hp !== 0.5) continue; // 파괴된 칸 제외
+            if (hp <= 0 && hp !== 0.5) continue;
 
-            let baseP = probMap[r][c];
-            let chainBonus = 0;
+            // 해당 칸을 클릭했을 때 확인할 수 있는 고유 배치 집합(Union)
+            let combinedConfigs = new Set(configMap[r][c]);
 
-            // 내구도가 1이거나 0.5일 때만 연쇄 반응 보너스 발생
+            // 연쇄 반응: 내구도 1 또는 0.5를 클릭 시 인접 0.5 칸들의 배치도 포함 (OR 조건)
             if (hp === 1 || hp === 0.5) {
                 let neighbors = getNeighbors(r, c);
                 neighbors.forEach(n => {
                     if (grid[n.r][n.c] === 0.5) {
-                        chainBonus += probMap[n.r][n.c]; // 주변 번개 칸의 가치를 더함
+                        // 인접한 0.5 칸의 모든 고유 배치를 현재 집합에 추가 (중복은 자동으로 제거됨)
+                        configMap[n.r][n.c].forEach(key => combinedConfigs.add(key));
                     }
                 });
             }
 
-            // 새로운 확률 공식 적용
-            let sScore = (baseP + chainBonus) / (hp === 0.5 ? 0.5 : hp);
+            // 요청하신 대로 0.5 내구도 클릭 비용을 1로 산정
+            let cost = (hp === 0.5) ? 1.0 : hp;
+            let sScore = combinedConfigs.size / cost;
 
             if (sScore > 0) {
                 strategyScores.push({ r, c, score: sScore });
@@ -831,10 +856,10 @@ function runSolver() {
         }
     }
 
-    // 3단계: 점수 기준 내림차순 정렬 (Top 3 추출용)
+    // 4. 정렬 및 결과 출력
     strategyScores.sort((a, b) => b.score - a.score);
 
-    // 4단계: 화면 업데이트 (경우의 수 대신 sScore 표시)
+    // 5. 화면 업데이트 (경우의 수 대신 sScore 표시)
     const hexes = document.querySelectorAll('.hex');
     hexes.forEach(el => {
         let r = parseInt(el.dataset.r);
