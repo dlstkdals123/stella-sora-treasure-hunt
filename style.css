@@ -23,7 +23,7 @@
     --color-hp-05: #E2E3F8;
     --color-hp-1: #C0BFDF;
     --color-hp-2: #928ABA;
-    --color-hp-3: #1A0A2A;
+    --color-hp-3: #33215B;
     /* 엄청 어두운 보라색 */
 
     --best-1: #ff7675;
@@ -85,6 +85,24 @@ button.secondary {
 
 button.active {
     background: #ff7675;
+}
+
+/* 편집 도구 버튼 기본 스타일 */
+.edit-btn {
+    opacity: 0.5;
+    transform: scale(0.9);
+    transition: all 0.2s ease;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* 선택된 도구 강조 스타일 */
+.edit-btn.active {
+    opacity: 1;
+    transform: scale(1.05);
+    outline: 2px solid var(--accent);
+    box-shadow: 0 0 12px var(--accent);
+    z-index: 5;
+    filter: brightness(1.2);
 }
 
 .control-group {

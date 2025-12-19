@@ -39,41 +39,26 @@ let placedTreasures = []; // 배치 확정된 보물 인스턴스 저장
 
 // Treasure Definition: Array of {q, r} offsets relative to center (0,0)
 let treasures = [
-    { id: 1, name: "점", points: [{ q: 0, r: 0 }], active: true },
-    { id: 2, name: "직선3", points: [{ q: 0, r: 0 }, { q: 0, r: -1 }, { q: 0, r: 1 }], active: true },
-    { id: 3, name: "삼각", points: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }], active: true }
+    { id: 1, points: [{ q: 0, r: 0 }], active: true },
+    { id: 2, points: [{ q: 0, r: 0 }, { q: 0, r: -1 }, { q: 0, r: 1 }], active: true },
+    { id: 3, points: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }], active: true }
 ];
 
 const STAGE_DATA = {
     'stage1': {
-        // 블록 내구도 배치
         layout: [
-            [-1, 1, 1, 1, 1, 2, -1],
-            [1, 1, 0.5, 1, 1, 1, 1],
-            [1, 2, 1, 1, 1, 0.5, 1],
+            [-1, 1, 1, 1, 1, 1, -1],
+            [1, 1, 1, 1, 1, 1, 1],
+            [1, 1, 1, 1, 1, 1, 1],
             [-1, -1, 1, -1, 1, -1, -1]
         ],
-        // 스테이지 시작 시 미리 배치될 보물 목록
-        treasures: [
-            {
-                id: 1001, // 고유 ID
-                name: "기본보물",
-                points: [{ q: 0, r: 0 }, { q: 0, r: -1 }], // 보물 모양 (상대 좌표)
-                placedAt: { r: 1, c: 2 } // 배치될 중심점 (row, col)
-            }
+        // 스테이지 1에서 제공되는 보물 블록들
+        availableTreasures: [
+            { id: 101, points: [{ q: 0, r: 0 }], active: true },
+            { id: 102, points: [{ q: 0, r: 0 }, { q: 0, r: 1 },], active: true },
+            { id: 103, points: [{ q: 0, r: 0 }, { q: 0, r: -1 }, { q: 0, r: 1 }], active: true },
+            { id: 104, points: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }], active: true }
         ]
-    },
-    'stage2': {
-        layout: Array(ROWS).fill().map(() => Array(COLS).fill(3)),
-        treasures: []
-    },
-    'stage3': {
-        layout: Array(ROWS).fill().map(() => Array(COLS).fill(3)),
-        treasures: []
-    },
-    'stage4': {
-        layout: Array(ROWS).fill().map(() => Array(COLS).fill(3)),
-        treasures: []
     }
 };
 
@@ -89,34 +74,42 @@ function initBoard(stage = 'stage1') {
     const container = document.getElementById('grid-container');
     container.innerHTML = '';
 
-    // 1. 스테이지 데이터 추출 (객체 형태 또는 기존 배열 형태 대응)
-    const stageInfo = STAGE_DATA[stage] || { layout: [], treasures: [] };
-    const currentLayout = Array.isArray(stageInfo) ? stageInfo : (stageInfo.layout || []);
-    const prePlacedTreasures = stageInfo.treasures || [];
+    const stageInfo = STAGE_DATA[stage] || { layout: [], availableTreasures: [] };
 
-    // 2. 상태값 초기화
+    // 1. 블록 레이아웃 설정
+    const currentLayout = Array.isArray(stageInfo) ? stageInfo : (stageInfo.layout || []);
+
+    // 2. 보물 블록 목록(Templates)을 스테이지 데이터로 교체
+    treasures = JSON.parse(JSON.stringify(stageInfo.availableTreasures || []));
+
+    // 3. 상태 초기화
     hiddenGrid = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
-    // 원본 데이터 보존을 위해 깊은 복사 수행
-    placedTreasures = JSON.parse(JSON.stringify(prePlacedTreasures));
+    placedTreasures = [];
+    selectedTreasureId = null;
+    currentRotationPoints = [];
 
     const width = 2 * HEX_SIZE;
     const height = Math.sqrt(3) * HEX_SIZE;
 
-    // 3. 그리드 블록 생성 및 내구도 설정
     for (let r = 0; r < ROWS; r++) {
         let rowArr = [];
         for (let c = 0; c < COLS; c++) {
+            // 하드코딩된 배열에서 값 추출 (데이터가 없으면 -1 기본값)
             let val = (currentLayout[r] && currentLayout[r][c] !== undefined)
                 ? currentLayout[r][c]
                 : -1;
+
             rowArr.push(val);
 
+            // DOM 생성 및 배치 로직
             let hex = document.createElement('div');
             hex.className = 'hex';
             hex.dataset.r = r;
             hex.dataset.c = c;
 
-            // Flat-topped Pixel 좌표 계산
+            // Flat-topped Pixel 좌표 계산 (Odd-Q)
+            // x = c * (width * 0.75)
+            // y = r * height + (c % 2) * (height / 2)
             const x = c * (width * 0.75);
             const y = r * height + ((c % 2) * (height / 2));
 
@@ -124,28 +117,14 @@ function initBoard(stage = 'stage1') {
             hex.style.top = `${y}px`;
             hex.onclick = () => onHexClick(r, c);
             hex.onmouseover = () => onHexHover(r, c);
+
             container.appendChild(hex);
         }
         grid.push(rowArr);
     }
 
-    // 4. 하드코딩된 보물 정보를 hiddenGrid에 물리적으로 반영
-    placedTreasures.forEach(treasure => {
-        const centerAxial = oddQToAxial(treasure.placedAt.r, treasure.placedAt.c);
-        treasure.points.forEach(p => {
-            const targetAxialQ = centerAxial.q + p.q;
-            const targetAxialR = centerAxial.r + p.r;
-            const targetPos = axialToOddQ(targetAxialQ, targetAxialR);
-
-            if (targetPos.r >= 0 && targetPos.r < ROWS && targetPos.c >= 0 && targetPos.c < COLS) {
-                hiddenGrid[targetPos.r][targetPos.c] = true;
-            }
-        });
-    });
-
-    // 5. UI 및 확률 계산 갱신
     renderGrid();
-    renderVisualTreasureList();
+    renderVisualTreasureList(); // 스테이지별로 변경된 보물 목록이 여기서 그려집니다.
     renderPlacedList();
     runSolver();
 }
@@ -181,20 +160,36 @@ function renderGrid() {
 }
 
 // --- 4. INTERACTION ---
+
+// 1. 편집 도구 선택 및 UI 업데이트
+function setEditVal(v) {
+    editVal = v;
+
+    // 모든 편집 버튼의 active 클래스 초기화
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+        // 호출 인자 v와 버튼의 onclick 속성에 명시된 값이 일치하는지 확인
+        if (btn.getAttribute('onclick').includes(`setEditVal(${v})`)) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
+
 function setMode(m) {
     mode = m;
 
-    // 버튼 UI 업데이트
     document.getElementById('btn-play').className = m === 'play' ? 'active' : '';
     document.getElementById('btn-edit').className = m === 'edit' ? 'active' : '';
     document.getElementById('edit-palette').style.display = m === 'edit' ? 'flex' : 'none';
 
-    // 컨테이너 클래스 조작 (CSS 연동)
     const container = document.getElementById('grid-container');
     if (m === 'edit') {
         container.classList.add('editing');
     } else {
         container.classList.remove('editing');
+        // 편집을 마치고 채굴 모드로 돌아올 때 자동으로 확률 재계산
+        runSolver();
     }
 }
 
@@ -251,8 +246,9 @@ function onHexClick(r, c) {
 
     // 2. 기존 편집/채굴 모드 처리
     if (mode === 'edit') {
-        grid[r][c] = editVal;
-        renderGrid();
+        grid[r][c] = editVal; // 내구도 데이터 수정
+        renderGrid();         // 그리드 시각적 갱신
+        runSolver();          // 실시간 확률 및 전략 점수 재계산 (추가)
     } else {
         // Play Mode: Mine logic
         mineBlock(r, c);
@@ -423,8 +419,7 @@ function saveTreasure() {
     });
 
     treasures.push({
-        id: Date.now(),
-        name: "Custom",
+        id: Date.now(), // id만 사용하여 식별
         points: points,
         active: true
     });
@@ -477,8 +472,6 @@ function generateTreasureSVG(points) {
 
 // 보물 설계도 삭제 함수
 function deleteTreasureTemplate(id) {
-    if (!confirm("이 보물 설계도를 보물 목록에서 영구히 삭제하시겠습니까?")) return;
-
     const index = treasures.findIndex(t => t.id === id);
     if (index !== -1) {
         treasures.splice(index, 1); // 배열에서 삭제
@@ -513,7 +506,7 @@ function renderVisualTreasureList() {
         let div = document.createElement('div');
         div.className = `visual-treasure-item ${t.id === selectedTreasureId ? 'selected' : ''}`;
         div.innerHTML = generateTreasureSVG(t.points);
-        div.title = t.name; // 툴팁으로 이름 표시
+        // div.title 제거됨 - 이름 없이 시각적 모양만 표시
 
         // 삭제 버튼 추가
         let delBtn = document.createElement('button');
@@ -723,12 +716,11 @@ function renderPlacedList() {
     placedTreasures.forEach((item, idx) => {
         const div = document.createElement('div');
         div.className = 'placed-item';
-        // 보물의 SVG 모양과 이름, 삭제 버튼을 표시
+        // 보물의 SVG 모양과 좌표만 표시
         div.innerHTML = `
             ${generateTreasureSVG(item.points)}
-            <div style="flex:1; display:flex; flex-direction:column;">
-                <span style="font-size:11px; color:#fff;">${item.name}</span>
-                <span style="font-size:9px; color:#aaa;">(${item.placedAt.r}, ${item.placedAt.c})</span>
+            <div style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+                <span style="font-size:10px; color:#aaa; margin-left:5px;">좌표: (${item.placedAt.r}, ${item.placedAt.c})</span>
             </div>
             <button class="remove-btn" onclick="removeTreasure(${idx})">✕</button>
         `;
