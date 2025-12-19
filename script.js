@@ -314,6 +314,41 @@ function chainReaction(r, c) {
     }
 }
 
+/**
+ * 실제로 파괴하지 않고, 연쇄 반응으로 파괴될 타일들의 집합만 반환하는 헬퍼 함수
+ * 시뮬레이션 확률 계산에 사용
+ * @param {number} r - 행 좌표
+ * @param {number} c - 열 좌표
+ * @param {Set} visited - 이미 방문한 좌표 집합 (무한 루프 방지)
+ * @returns {Array} 파괴될 타일 좌표 배열 [{r, c}, ...]
+ */
+function getChainReactionSet(r, c, visited = new Set()) {
+    const key = `${r},${c}`;
+    if (visited.has(key)) return [];
+
+    const hp = grid[r] && grid[r][c];
+    // 경계 체크 및 유효한 타일인지 확인
+    if (r < 0 || r >= ROWS || c < 0 || c >= COLS || !hp || hp === -1) return [];
+
+    visited.add(key);
+    let resultSet = [{ r, c }];
+
+    // 내구도가 1 또는 0.5일 때만 연쇄 반응 발생
+    // (1이 깨지면 인접 0.5가 깨지고, 0.5가 깨지면 또 인접 0.5가 깨짐)
+    if (hp === 1 || hp === 0.5) {
+        // 주변의 0.5 타일들을 재귀적으로 탐색
+        const neighbors = getNeighbors(r, c);
+        neighbors.forEach(n => {
+            if (grid[n.r] && grid[n.r][n.c] === 0.5) {
+                const chainTiles = getChainReactionSet(n.r, n.c, visited);
+                resultSet = resultSet.concat(chainTiles);
+            }
+        });
+    }
+
+    return resultSet;
+}
+
 // --- 5. TREASURE EDITOR ---
 let editorGrid = []; // Stores boolean for 5x5 mini grid
 const EDITOR_SIZE = 5; // -2 to +2 range
@@ -817,7 +852,7 @@ function runSolver() {
         }
     });
 
-    // 3. 전략 점수 산출 (OR 논리 적용)
+    // 3. 전략 점수 산출 (OR 논리 적용 + 연쇄 반응 시뮬레이션)
     let strategyScores = [];
     for (let r = 0; r < ROWS; r++) {
         for (let c = 0; c < COLS; c++) {
@@ -827,13 +862,14 @@ function runSolver() {
             // 해당 칸을 클릭했을 때 확인할 수 있는 고유 배치 집합(Union)
             let combinedConfigs = new Set(configMap[r][c]);
 
-            // 연쇄 반응: 내구도 1 또는 0.5를 클릭 시 인접 0.5 칸들의 배치도 포함 (OR 조건)
+            // 연쇄 반응 시뮬레이션: 내구도 1 또는 0.5를 클릭 시 연쇄적으로 파괴될 모든 칸의 배치 포함
             if (hp === 1 || hp === 0.5) {
-                let neighbors = getNeighbors(r, c);
-                neighbors.forEach(n => {
-                    if (grid[n.r][n.c] === 0.5) {
-                        // 인접한 0.5 칸의 모든 고유 배치를 현재 집합에 추가 (중복은 자동으로 제거됨)
-                        configMap[n.r][n.c].forEach(key => combinedConfigs.add(key));
+                // 재귀적으로 연쇄 반응으로 파괴될 모든 타일 좌표 가져오기
+                const chainTiles = getChainReactionSet(r, c, new Set());
+                chainTiles.forEach(tile => {
+                    // 연쇄 반응으로 파괴될 각 칸의 모든 고유 배치를 현재 집합에 추가 (중복은 자동으로 제거됨)
+                    if (configMap[tile.r] && configMap[tile.r][tile.c]) {
+                        configMap[tile.r][tile.c].forEach(key => combinedConfigs.add(key));
                     }
                 });
             }
