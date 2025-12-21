@@ -9,6 +9,7 @@
 
 
 다음과 같은 요소들을 고려하여 만들었습니다.  
+실제로 확률 계산에도 고려합니다.  
 - 내구도(1, 2, 3)  
 - 하얀 블럭  
 <img width="3120" height="1440" alt="Image" src="https://github.com/user-attachments/assets/558ee5b9-4d49-4f73-9098-ec137585ae32" />
