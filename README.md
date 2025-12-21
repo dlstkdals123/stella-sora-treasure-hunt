@@ -1,5 +1,5 @@
 # 스텔라소라 보물찾기 시뮬레이션
-[![View Site](https://img.shields.io/badge/View-Website-blue?style=for-the-badge)](https://dlstkdals123.github.io/stella-sora-treasure-hunt/)
+[![View Site](https://img.shields.io/badge/View-Website-blue?style=for-the-badge)](https://dlstkdals123.github.io/stella-sora-treasure-hunt/) <- 클릭하여 이동합니다.
 
 시뮬레이션 화면:  
 <img width="1920" height="1032" alt="Image" src="https://github.com/user-attachments/assets/648e6345-0427-430c-8854-9a27a661ddff" />
